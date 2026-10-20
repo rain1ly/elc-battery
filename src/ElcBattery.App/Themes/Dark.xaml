@@ -1,0 +1,41 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ==================== 深色主题 token ====================
+         键名与 Light.xaml 完全一致，只换值。 -->
+
+    <SolidColorBrush x:Key="WinBg" Color="#16181C" />
+    <SolidColorBrush x:Key="Surface" Color="#1E2127" />
+    <SolidColorBrush x:Key="SurfaceAlt" Color="#1A1D22" />
+    <SolidColorBrush x:Key="InputBg" Color="#262A31" />
+
+    <SolidColorBrush x:Key="Border" Color="#2C3037" />
+    <SolidColorBrush x:Key="BorderStrong" Color="#3A3F48" />
+    <SolidColorBrush x:Key="Divider" Color="#24282F" />
+
+    <SolidColorBrush x:Key="Text" Color="#EDEFF3" />
+    <SolidColorBrush x:Key="Text2" Color="#A2AAB8" />
+    <SolidColorBrush x:Key="Text3" Color="#7C8492" />
+
+    <SolidColorBrush x:Key="Track" Color="#2A2E35" />
+    <SolidColorBrush x:Key="SegBg" Color="#262A31" />
+    <!-- 深色下选中项必须比卡片亮一档，否则和背景同色、看不出选中的是谁 -->
+    <SolidColorBrush x:Key="SegActive" Color="#3A4049" />
+
+    <!-- 深色下强调色提亮到 #5B9DFF 保证在深底上的可读性（6.1:1），
+         但实心按钮底仍用 #2563EB，白字才能保持 5.2:1 -->
+    <SolidColorBrush x:Key="Accent" Color="#5B9DFF" />
+    <SolidColorBrush x:Key="AccentSolid" Color="#2563EB" />
+    <SolidColorBrush x:Key="AccentSolidHover" Color="#1D4ED8" />
+    <SolidColorBrush x:Key="OnAccent" Color="#FFFFFF" />
+
+    <SolidColorBrush x:Key="Success" Color="#45D48E" />
+    <SolidColorBrush x:Key="Caution" Color="#E8A33D" />
+    <SolidColorBrush x:Key="Danger" Color="#F0736A" />
+    <SolidColorBrush x:Key="Muted" Color="#7C8492" />
+
+    <SolidColorBrush x:Key="Hover" Color="#1FFFFFFF" />
+    <SolidColorBrush x:Key="Press" Color="#33FFFFFF" />
+
+    <SolidColorBrush x:Key="AcrylicFallback" Color="#16181C" />
+</ResourceDictionary>

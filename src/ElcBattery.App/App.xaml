@@ -1,0 +1,15 @@
+<Application x:Class="ElcBattery.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- [0] 主题 token：运行时由 ThemeService 整体替换 -->
+                <ResourceDictionary Source="Themes/Light.xaml" />
+                <!-- [1] 控件样式：全部用 DynamicResource 引用 token -->
+                <ResourceDictionary Source="Themes/Controls.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

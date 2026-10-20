@@ -1,0 +1,25 @@
+# 编译产物
+bin/
+obj/
+publish/
+*.pdb
+
+# Visual Studio / MSBuild
+.vs/
+Backup/
+UpgradeLog.htm
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Python（探测脚本产生的缓存）
+__pycache__/
+*.pyc
+
+# 运行时数据（在 %APPDATA%\ELC\，不入库）
+config.json
+elc.log
+
+# 本地快捷方式（指向本机绝对路径，对别人无意义）
+*.lnk

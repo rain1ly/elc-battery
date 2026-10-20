@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>ELCBattery</AssemblyName>
+    <RootNamespace>ElcBattery.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- exe 文件图标：由 tools/IconPreview 生成，改图标后重跑工具再编译 -->
+    <ApplicationIcon>..\..\design\icons\app.ico</ApplicationIcon>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
+
+    <!-- 后台常驻的内存优化，详见 README「内存占用」 -->
+
+    <!-- ⚠️ 不要开 InvariantGlobalization：XAML 默认 xml:lang="en-us"，
+         绑定转换值时要查这个区域性，Invariant 模式下它不存在，会直接
+         抛 XamlParseException 崩在启动阶段（2026-10-20 实测踩过）。
+         想省 ICU 那 20-30MB 就得同时改写所有绑定的 ConverterCulture，代价不值。 -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <!-- 关掉并发 GC：省一条常驻 GC 线程及其堆。代价是 GC 时短暂暂停，
+         但程序绝大多数时间藏在托盘里，感知不到 -->
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WPF 与 WinForms 同时启用时，这两个隐式 using 会让 Color / MessageBox / Application 产生歧义，
+         统一移除，由各文件显式引用自己需要的那个。 -->
+    <Using Remove="System.Drawing" />
+    <Using Remove="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ElcBattery.Core\ElcBattery.Core.csproj" />
+  </ItemGroup>
+
+</Project>

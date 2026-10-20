@@ -1,0 +1,471 @@
+<Window x:Class="ElcBattery.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="ELC 电量监视"
+        Width="440" Height="600"
+        MinWidth="380" MinHeight="220" MaxHeight="700"
+        WindowStyle="None"
+        Background="Transparent"
+        ResizeMode="CanResize"
+        WindowStartupLocation="CenterScreen"
+        FontFamily="Microsoft YaHei UI, Segoe UI"
+        TextOptions.TextFormattingMode="Display"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="0"
+                            ResizeBorderThickness="5"
+                            GlassFrameThickness="0"
+                            CornerRadius="0"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- 图标一律用 Geometry，不用字符：字符在非整数 DPI 下基线会漂，且无法控制描边粗细 -->
+        <Style x:Key="LineIcon" TargetType="Path">
+            <Setter Property="Width" Value="15" />
+            <Setter Property="Height" Value="15" />
+            <Setter Property="Stroke" Value="{DynamicResource Text2}" />
+            <Setter Property="StrokeThickness" Value="1.4" />
+            <Setter Property="StrokeStartLineCap" Value="Round" />
+            <Setter Property="StrokeEndLineCap" Value="Round" />
+            <Setter Property="StrokeLineJoin" Value="Round" />
+            <Setter Property="Fill" Value="Transparent" />
+            <Setter Property="Stretch" Value="None" />
+        </Style>
+
+        <!-- ==================== 设备卡片 ==================== -->
+        <DataTemplate x:Key="DeviceCardTemplate">
+            <Grid Margin="0,0,0,9">
+                <Border x:Name="card" Style="{StaticResource Card}" Padding="15,13,15,12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- 名称 + 数值：同一行两端对齐 -->
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                       FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Text}"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center" Margin="0,0,10,0" />
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding PercentText}"
+                                           FontSize="27" FontWeight="SemiBold"
+                                           Foreground="{Binding PercentBrush}"
+                                           LineHeight="27" LineStackingStrategy="BlockLineHeight"
+                                           Typography.NumeralAlignment="Tabular" />
+                                <TextBlock Text="{Binding UnitText}"
+                                           FontSize="13" Foreground="{Binding PercentBrush}"
+                                           VerticalAlignment="Bottom" Margin="1,0,0,3" Opacity="0.9" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- 进度条：填充与预警刻度都用 Star 列按比例分配，随窗口宽度自适应 -->
+                        <Grid Grid.Row="1" Height="8" Margin="0,11,0,0">
+                            <Border Background="{DynamicResource Track}" CornerRadius="4" />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="{Binding PercentStar}" />
+                                    <ColumnDefinition Width="{Binding RestStar}" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Background="{Binding BarBrush}" CornerRadius="4" />
+                            </Grid>
+
+                            <Grid Visibility="{Binding ShowTick, Converter={StaticResource BoolToVis}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="{Binding TickStar}" />
+                                    <ColumnDefinition Width="1.5" />
+                                    <ColumnDefinition Width="{Binding TickRestStar}" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="1" Background="{DynamicResource BorderStrong}"
+                                        CornerRadius="1" Margin="0,-2.5,0,-2.5" />
+                            </Grid>
+                        </Grid>
+
+                        <!-- 元信息 + 状态标记（状态只在需要提醒时出现） -->
+                        <Grid Grid.Row="2" Margin="0,9,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="{Binding MetaText}"
+                                       FontSize="12" Foreground="{DynamicResource Text2}"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+                            <Button Grid.Column="1" Content="驱动设置"
+                                    Style="{StaticResource InlineLink}"
+                                    Visibility="{Binding HasDriverLink, Converter={StaticResource BoolToVis}}"
+                                    Click="Driver_Click" />
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                        Margin="10,0,0,0"
+                                        Visibility="{Binding HasState, Converter={StaticResource BoolToVis}}">
+                                <Path Data="{Binding StateIcon}" Fill="{Binding StateBrush}"
+                                      Width="10" Height="10" Stretch="Uniform"
+                                      VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBlock Text="{Binding StateText}"
+                                           FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{Binding StateBrush}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Grid.Row="3" Text="{Binding ErrorText}"
+                                   FontSize="11" Foreground="{DynamicResource Danger}"
+                                   TextWrapping="Wrap" Margin="0,5,0,0"
+                                   Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}" />
+                    </Grid>
+                </Border>
+
+                <!-- 读不到电量的卡片：虚线框弱化，但绝不隐藏 -->
+                <Rectangle x:Name="dashFrame" Visibility="Collapsed"
+                           RadiusX="14" RadiusY="14"
+                           Stroke="{DynamicResource BorderStrong}" StrokeThickness="1"
+                           StrokeDashArray="3 2.5" IsHitTestVisible="False" />
+            </Grid>
+
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsDim}" Value="True">
+                    <Setter TargetName="card" Property="Background" Value="{DynamicResource SurfaceAlt}" />
+                    <Setter TargetName="card" Property="BorderBrush" Value="Transparent" />
+                    <Setter TargetName="dashFrame" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <!-- 磨砂底：DWM 生效时这里会被设为透明 -->
+        <Border x:Name="CardLayer" CornerRadius="14" Background="{DynamicResource AcrylicFallback}" />
+
+        <Grid x:Name="Shell" Margin="16,14,16,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- ==================== 标题栏 ==================== -->
+            <Grid Grid.Row="0" Height="28" Margin="0,0,0,13" Background="Transparent"
+                  MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+
+                <StackPanel x:Name="TitleNormal" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="26" Height="26" CornerRadius="8" Background="{DynamicResource AccentSolid}">
+                        <TextBlock Text="E" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource OnAccent}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="电量监视" FontSize="14" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Text}"
+                               Margin="9,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel x:Name="TitleBack" Orientation="Horizontal" VerticalAlignment="Center"
+                            Visibility="Collapsed">
+                    <Button Style="{StaticResource IconBtn}" Width="26" Height="26"
+                            Click="Back_Click" ToolTip="返回（Esc）">
+                        <Path Style="{StaticResource LineIcon}" Data="M9.5,3.5 L5,8 L9.5,12.5" />
+                    </Button>
+                    <TextBlock Text="设置" FontSize="14" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Text}"
+                               Margin="6,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button x:Name="RefreshBtn" Style="{StaticResource IconBtn}"
+                            Click="Refresh_Click" ToolTip="立即刷新（Ctrl+R）">
+                        <Path x:Name="RefreshIcon" Style="{StaticResource LineIcon}"
+                              Data="M13,8 A5,5 0 1 1 11.4,4.3 M13.1,2.6 L13.1,5.8 L9.9,5.8" />
+                    </Button>
+
+                    <Button x:Name="SettingsBtn" Style="{StaticResource IconBtn}"
+                            Click="Settings_Click" ToolTip="设置（Ctrl+,）">
+                        <Path Style="{StaticResource LineIcon}"
+                              Data="M2.5,5.5 L9.4,5.5 M12.9,5.5 L13.5,5.5 M2.5,10.5 L4.7,10.5 M8.1,10.5 L13.5,10.5 M11.2,4 A1.5,1.5 0 1 0 11.2,7 A1.5,1.5 0 1 0 11.2,4 M6.5,9 A1.5,1.5 0 1 0 6.5,12 A1.5,1.5 0 1 0 6.5,9" />
+                    </Button>
+
+                    <Button Style="{StaticResource IconBtn}" Click="Minimize_Click" ToolTip="最小化">
+                        <Path Style="{StaticResource LineIcon}" Data="M3.5,8.5 L12.5,8.5" />
+                    </Button>
+
+                    <Button Style="{StaticResource IconBtn}" Click="Close_Click" ToolTip="关闭">
+                        <Path Style="{StaticResource LineIcon}" Data="M4.4,4.4 L11.6,11.6 M11.6,4.4 L4.4,11.6" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- ==================== 内容区 ==================== -->
+            <Grid Grid.Row="1">
+
+                <!-- ===== 主视图 ===== -->
+                <Grid x:Name="MainView">
+                    <ScrollViewer Style="{StaticResource ThinScrollViewer}" VerticalScrollBarVisibility="Auto"
+                                  MaxHeight="520">
+                        <ItemsControl x:Name="DeviceList" ItemTemplate="{StaticResource DeviceCardTemplate}"
+                                      Margin="0,0,2,0" />
+                    </ScrollViewer>
+
+                    <StackPanel x:Name="EmptyHint" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                Visibility="Collapsed" Margin="0,0,0,20">
+                        <Canvas Width="76" Height="52" HorizontalAlignment="Center">
+                            <Rectangle Canvas.Left="26" Canvas.Top="4" Width="24" Height="40"
+                                       RadiusX="12" RadiusY="12"
+                                       Stroke="{DynamicResource BorderStrong}" StrokeThickness="1.5" />
+                            <Line X1="38" Y1="14" X2="38" Y2="24"
+                                  Stroke="{DynamicResource BorderStrong}" StrokeThickness="1.5"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            <Line X1="30" Y1="33" X2="46" Y2="33"
+                                  Stroke="{DynamicResource BorderStrong}" StrokeThickness="1.5"
+                                  StrokeDashArray="3 3" />
+                            <Ellipse Canvas.Left="61" Canvas.Top="9" Width="5" Height="5"
+                                     Fill="{DynamicResource BorderStrong}" />
+                            <Ellipse Canvas.Left="10" Canvas.Top="18" Width="4" Height="4"
+                                     Fill="{DynamicResource BorderStrong}" Opacity="0.55" />
+                        </Canvas>
+
+                        <TextBlock Text="没有检测到支持的设备"
+                                   FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Text}"
+                                   HorizontalAlignment="Center" Margin="0,14,0,0" />
+                        <TextBlock Text="插上 2.4G 接收器或连接有线设备，然后重新扫描。"
+                                   FontSize="12" Foreground="{DynamicResource Text2}"
+                                   TextAlignment="Center" TextWrapping="Wrap" MaxWidth="250"
+                                   HorizontalAlignment="Center" Margin="0,5,0,0" LineHeight="19" />
+                        <Border HorizontalAlignment="Center" Margin="0,16,0,0"
+                                BorderBrush="{DynamicResource Accent}" BorderThickness="0.5" CornerRadius="8">
+                            <Button Content="重新扫描" Style="{StaticResource InlineLink}"
+                                    Foreground="{DynamicResource Accent}" Padding="16,5" Click="Refresh_Click" />
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ===== 设置视图 ===== -->
+                <Grid x:Name="SettingsView" Visibility="Collapsed">
+                    <ScrollViewer Style="{StaticResource ThinScrollViewer}" MaxHeight="520">
+                        <StackPanel Margin="0,0,3,0">
+
+                            <!-- 读取 -->
+                            <TextBlock Text="读取" Style="{StaticResource GroupLabel}" Margin="4,0,4,5" />
+                            <Border Style="{StaticResource SettingsCard}">
+                                <StackPanel>
+                                    <Grid Style="{StaticResource SettingRow}">
+                                        <TextBlock Text="刷新间隔" Style="{StaticResource RowLabel}" />
+                                        <Border Style="{StaticResource StepperBox}" HorizontalAlignment="Right"
+                                                VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="−" Style="{StaticResource StepBtn}"
+                                                        Click="RefreshMinus_Click" />
+                                                <TextBlock x:Name="RefreshValue" Style="{StaticResource StepValue}" />
+                                                <Button Content="+" Style="{StaticResource StepBtn}"
+                                                        Click="RefreshPlus_Click" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                    <Border Height="0.5" Background="{DynamicResource Divider}" />
+
+                                    <Grid Style="{StaticResource SettingRow}">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,8,0,8">
+                                            <TextBlock Text="唤醒后立即读取" Style="{StaticResource RowLabel}" />
+                                            <TextBlock Text="设备从休眠唤醒时补一次查询" Style="{StaticResource RowHint}" />
+                                        </StackPanel>
+                                        <ToggleButton x:Name="WakeToggle" Style="{StaticResource Switch}"
+                                                      HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 提醒 -->
+                            <TextBlock Text="提醒" Style="{StaticResource GroupLabel}" />
+                            <Border Style="{StaticResource SettingsCard}">
+                                <StackPanel>
+                                    <Grid Style="{StaticResource SettingRow}">
+                                        <TextBlock Text="一级提醒" Style="{StaticResource RowLabel}" />
+                                        <Border Style="{StaticResource StepperBox}" HorizontalAlignment="Right"
+                                                VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="−" Style="{StaticResource StepBtn}"
+                                                        Click="Threshold1Minus_Click" />
+                                                <TextBlock x:Name="Threshold1Value" Style="{StaticResource StepValue}" />
+                                                <Button Content="+" Style="{StaticResource StepBtn}"
+                                                        Click="Threshold1Plus_Click" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                    <Border Height="0.5" Background="{DynamicResource Divider}" />
+
+                                    <Grid Style="{StaticResource SettingRow}">
+                                        <TextBlock Text="二级提醒" Style="{StaticResource RowLabel}" />
+                                        <Border Style="{StaticResource StepperBox}" HorizontalAlignment="Right"
+                                                VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="−" Style="{StaticResource StepBtn}"
+                                                        Click="Threshold2Minus_Click" />
+                                                <TextBlock x:Name="Threshold2Value" Style="{StaticResource StepValue}" />
+                                                <Button Content="+" Style="{StaticResource StepBtn}"
+                                                        Click="Threshold2Plus_Click" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                    <Border Height="0.5" Background="{DynamicResource Divider}" />
+
+                                    <Grid Style="{StaticResource SettingRow}">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,8,0,8">
+                                            <TextBlock Text="提示音" Style="{StaticResource RowLabel}" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock x:Name="SoundPathText" Text="系统默认"
+                                                           Style="{StaticResource RowHint}"
+                                                           MaxWidth="180" TextTrimming="CharacterEllipsis"
+                                                           TextWrapping="NoWrap" />
+                                                <Button Content="更换" Style="{StaticResource InlineLink}"
+                                                        FontSize="11" Padding="5,0,0,0" Click="PickSound_Click" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <ToggleButton x:Name="SoundToggle" Style="{StaticResource Switch}"
+                                                      HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 启动与退出 -->
+                            <TextBlock Text="启动与退出" Style="{StaticResource GroupLabel}" />
+                            <Border Style="{StaticResource SettingsCard}">
+                                <StackPanel>
+                                    <Grid Style="{StaticResource SettingRow}">
+                                        <TextBlock Text="开机自动启动" Style="{StaticResource RowLabel}" />
+                                        <ToggleButton x:Name="AutoStartToggle" Style="{StaticResource Switch}"
+                                                      HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                    </Grid>
+
+                                    <Border Height="0.5" Background="{DynamicResource Divider}" />
+
+                                    <Grid Style="{StaticResource SettingRow}">
+                                        <TextBlock Text="点关闭按钮时" Style="{StaticResource RowLabel}" />
+                                        <Border Background="{DynamicResource SegBg}" CornerRadius="8"
+                                                Padding="2" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton x:Name="CloseMinimizeRadio" GroupName="CloseAction"
+                                                             Content="最小化到托盘" Style="{StaticResource SegOption}" />
+                                                <RadioButton x:Name="CloseExitRadio" GroupName="CloseAction"
+                                                             Content="退出程序" Style="{StaticResource SegOption}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 外观 -->
+                            <TextBlock Text="外观" Style="{StaticResource GroupLabel}" />
+                            <Border Style="{StaticResource SettingsCard}">
+                                <StackPanel>
+                                    <Grid Style="{StaticResource SettingRow}">
+                                        <TextBlock Text="主题" Style="{StaticResource RowLabel}" />
+                                        <Border Background="{DynamicResource SegBg}" CornerRadius="8"
+                                                Padding="2" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton x:Name="ThemeLightRadio" GroupName="Theme"
+                                                             Content="浅色" Style="{StaticResource SegOption}"
+                                                             Checked="Theme_Checked" Tag="Light" />
+                                                <RadioButton x:Name="ThemeDarkRadio" GroupName="Theme"
+                                                             Content="深色" Style="{StaticResource SegOption}"
+                                                             Checked="Theme_Checked" Tag="Dark" />
+                                                <RadioButton x:Name="ThemeSystemRadio" GroupName="Theme"
+                                                             Content="跟随系统" Style="{StaticResource SegOption}"
+                                                             Checked="Theme_Checked" Tag="System" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 高级 -->
+                            <TextBlock Text="高级" Style="{StaticResource GroupLabel}" />
+                            <Border Style="{StaticResource SettingsCard}">
+                                <StackPanel>
+                                    <Grid Style="{StaticResource SettingRow}">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,8,0,8">
+                                            <TextBlock Text="显示不支持电量读取的设备" Style="{StaticResource RowLabel}" />
+                                            <TextBlock Text="排查用；默认只列出能读到电量的设备"
+                                                       Style="{StaticResource RowHint}" />
+                                        </StackPanel>
+                                        <ToggleButton x:Name="ShowUnsupportedToggle" Style="{StaticResource Switch}"
+                                                      HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                    </Grid>
+
+                                    <Border Height="0.5" Background="{DynamicResource Divider}" />
+
+                                    <Grid Style="{StaticResource SettingRow}">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,8,0,8">
+                                            <TextBlock Text="设备报告" Style="{StaticResource RowLabel}" />
+                                            <TextBlock Text="导出全部 HID 结构与报告描述符"
+                                                       Style="{StaticResource RowHint}" />
+                                        </StackPanel>
+                                        <Button Content="导出" Style="{StaticResource GhostBtn}" Height="24"
+                                                HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                Click="Dump_Click" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Height="6" Background="Transparent" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Grid>
+
+            <!-- ==================== 底部 ==================== -->
+            <Grid Grid.Row="2" Margin="0,10,0,0">
+
+                <Grid x:Name="MainFooter">
+                    <TextBlock x:Name="FooterText" Text="正在读取…"
+                               FontSize="12" Foreground="{DynamicResource Text3}"
+                               Typography.NumeralAlignment="Tabular"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,80,0" />
+
+                    <Button Style="{StaticResource InlineLink}" HorizontalAlignment="Right"
+                            VerticalAlignment="Center" Click="Refresh_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource LineIcon}" Width="13" Height="13"
+                                  Stroke="{DynamicResource Accent}"
+                                  Data="M13,8 A5,5 0 1 1 11.4,4.3 M13.1,2.6 L13.1,5.8 L9.9,5.8"
+                                  VerticalAlignment="Center" Margin="0,0,5,0" />
+                            <TextBlock Text="立即刷新" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Accent}" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <Grid x:Name="SettingsFooter" Visibility="Collapsed">
+                    <Button Content="恢复默认" Style="{StaticResource GhostBtn}"
+                            HorizontalAlignment="Left" Click="ResetSettings_Click" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="取消" Style="{StaticResource GhostBtn}" Click="CancelSettings_Click" />
+                        <Button Content="保存" Style="{StaticResource PrimaryBtn}"
+                                Margin="8,0,0,0" Click="SaveSettings_Click" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

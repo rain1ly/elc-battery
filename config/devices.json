@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "note": "设备协议规则库。内置的 ROG / 标准 HID 两套协议已经硬编码在程序里，这里是可读的协议说明书，也是后续扩展新品牌的模板。",
+  "providers": [
+    {
+      "id": "rog-speednova",
+      "name": "ROG SpeedNova 无线（华硕）",
+      "driverUrl": "https://gearlink.asus.com.cn/zh-cn",
+      "match": {
+        "vendorId": "0B05",
+        "knownProductIds": ["1AD0", "1C69", "1C6B"],
+        "descriptorRule": "存在 usagePage 0xFF01/usage 1 的 Output report，或 0xFFC1/usage 1 的 Input report"
+      },
+      "protocol": {
+        "type": "hid-output-report(WriteFile) + interrupt-in",
+        "controlUsagePage": "FF01",
+        "eventUsagePage": "FFC1",
+        "usage": 1,
+        "reportIdSource": "HidP_GetValueCaps 动态获取（本机实测 = 3）",
+        "reportIdObserved": 3,
+        "command": ["12", "07", "00", "00"],
+        "reportLength": 64,
+        "payloadPadding": "整条报告 64 字节，reportId 占第 1 字节，其余补 0",
+        "sendMethod": "WriteFile（严禁用 HidD_SetOutputReport：返回成功但设备不响应）",
+        "responseFrom": "0xFF01 接口自身的 Input Report（不是 0xFFC1）",
+        "responseMatch": ["12", "07"],
+        "responseMinLength": 11,
+        "fields": {
+          "percent": 4,
+          "sleepProfile": 5,
+          "lowBatteryThreshold": 6,
+          "voltageLE": [7, 8],
+          "charging": 9,
+          "batteryType": 10
+        },
+        "fieldsNote": "索引相对于去掉 Report ID 之后的数据区；完整报文里 percent 在 index 5",
+        "otherCommands": {
+          "smartBatteryInfo": ["12", "15"],
+          "writeLowBatteryThreshold": ["15", "37"]
+        },
+        "timeoutMs": 500,
+        "source": "华硕 GearLink 前端 bundle（fetchPowerInfo）+ 本机实测校准"
+      }
+    },
+    {
+      "id": "mchose-hid",
+      "name": "迈从（MCHOSE）鼠标",
+      "driverUrl": "https://www.mchose.com.cn",
+      "match": {
+        "vendorId": "5253"
+      },
+      "protocol": {
+        "type": "hid-feature-report",
+        "usagePage": "FF01",
+        "featureReportLength": 65,
+        "command": "无需命令，直接读",
+        "reportId": "14",
+        "response": "[0x14][电量%][电量%][0x00...]",
+        "percentIndex": 1,
+        "note": "byte[1] 为电量，byte[2] 同值；读到超出 0-100 视为不支持",
+        "verifiedOn": "A7 Pro (PID 1021)，2026-10-20 真机实测"
+      }
+    },
+    {
+      "id": "hid-battery-strength",
+      "name": "标准 HID 电池（通用）",
+      "match": {
+        "descriptorRule": "存在 usagePage 0x0006 / usage 0x0020 (Battery Strength) 的 Input 字段"
+      },
+      "protocol": {
+        "type": "hid-input-report",
+        "usagePage": "0006",
+        "usage": "0020",
+        "extract": "按字段的 bitOffset/bitSize 取值；logicalMax != 100 时按比例换算成百分比"
+      }
+    }
+  ],
+  "devices": [
+    {
+      "name": "ROG 龙鳞 2 Ace",
+      "vendorId": "0B05",
+      "productId": "1AD0",
+      "note": "ROG SPEEDNOVA 8K 接收器，优先适配目标",
+      "provider": "rog-speednova"
+    },
+    {
+      "name": "ROG 龙鳞 2 Ace（USB 直连）",
+      "vendorId": "0B05",
+      "productId": "1C69",
+      "provider": "rog-speednova"
+    },
+    {
+      "name": "ROG 龙鳞 2 Ace（无线接收器 7275）",
+      "vendorId": "0B05",
+      "productId": "1C6B",
+      "provider": "rog-speednova"
+    },
+    {
+      "name": "迈从 A7 Pro",
+      "vendorId": "5253",
+      "productId": "1021",
+      "note": "RealTek 主控，真机验证过",
+      "provider": "mchose-hid"
+    }
+  ]
+}

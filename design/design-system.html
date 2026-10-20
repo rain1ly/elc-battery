@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ELC 电量监视 · 界面设计规范</title>
+<style>
+:root{
+  --win-bg:#F7F8FA; --surface:#FFFFFF; --surface-alt:#FBFBFC;
+  --border:#E4E7EC; --border-strong:#D4D9E0;
+  --text:#14161A; --text-2:#5F6875; --text-3:#8A929E;
+  --track:#EBEEF2; --seg-bg:#EDEFF3;
+  --accent:#2563EB; --green:#14804A; --amber:#A9640C; --red:#C0392B;
+  --page:#EDEFF2; --card:#FFFFFF; --code-bg:#F2F4F7;
+}
+[data-theme="dark"]{
+  --win-bg:#16181C; --surface:#1E2127; --surface-alt:#1A1D22;
+  --border:#2C3037; --border-strong:#3A3F48;
+  --text:#EDEFF3; --text-2:#A2AAB8; --text-3:#7C8492;
+  --track:#2A2E35; --seg-bg:#262A31;
+  --accent:#5B9DFF; --green:#45D48E; --amber:#E8A33D; --red:#F0736A;
+  --page:#0F1114; --card:#181B20; --code-bg:#22262C;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--page); color:var(--text);
+  font-family:"Segoe UI Variable Display","Segoe UI","Microsoft YaHei UI",-apple-system,system-ui,sans-serif;
+  font-size:14px; line-height:1.6;
+  padding:0 28px 80px; transition:background .25s,color .25s;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1420px;margin:0 auto}
+header{padding:44px 0 26px;display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap}
+h1{font-size:26px;font-weight:600;letter-spacing:-.4px}
+.sub{font-size:13px;color:var(--text-2);margin-top:6px}
+.tools{display:flex;gap:8px}
+button{
+  font:inherit;font-size:12px;padding:7px 13px;border-radius:9px;cursor:pointer;
+  background:var(--surface);color:var(--text-2);border:.5px solid var(--border-strong);
+  transition:all .15s;
+}
+button:hover{color:var(--text);border-color:var(--text-3)}
+button.on{background:var(--accent);color:#fff;border-color:transparent}
+h2{font-size:15px;font-weight:600;margin:44px 0 4px;letter-spacing:-.1px}
+h2 .n{color:var(--text-3);font-weight:400;margin-right:8px}
+.lead{font-size:12.5px;color:var(--text-2);margin-bottom:18px;max-width:720px}
+
+.stage{display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start}
+.frame-label{font-size:11px;color:var(--text-3);letter-spacing:.8px;margin-bottom:9px;padding-left:2px}
+
+.win{
+  width:440px;background:var(--win-bg);border:.5px solid var(--border-strong);
+  border-radius:14px;transition:background .25s,border-color .25s;
+}
+.win.pad{padding:15px 16px 12px}
+.win.clip{overflow:hidden}
+
+.titlebar{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}
+.brand{display:flex;align-items:center;gap:9px}
+.logo{width:26px;height:26px;border-radius:8px;background:var(--accent);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+.brand span{font-size:14px;font-weight:600}
+.winbtns{display:flex;gap:1px;color:var(--text-2)}
+.wbtn{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.wbtn:hover{background:rgba(128,136,152,.14);color:var(--text)}
+
+.card{
+  background:var(--surface);border:.5px solid var(--border);border-radius:14px;
+  padding:13px 15px 12px;margin-bottom:9px;transition:background .25s,border-color .25s;
+}
+.card.dim{background:var(--surface-alt);border:.5px dashed var(--border-strong)}
+.row1{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.dev{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pct{display:flex;align-items:baseline;font-variant-numeric:tabular-nums}
+.pct b{font-size:27px;font-weight:600;line-height:1;letter-spacing:-.5px}
+.pct i{font-size:13px;font-style:normal;margin-left:1px;opacity:.85}
+.pct.none b{font-size:22px;letter-spacing:1px}
+.bar{position:relative;height:8px;background:var(--track);border-radius:4px;margin-top:11px}
+.bar>i{position:absolute;left:0;top:0;height:8px;border-radius:4px;display:block}
+.tick{position:absolute;left:20%;top:-2.5px;width:1.5px;height:13px;background:var(--border-strong);border-radius:1px}
+.hollow{height:8px;border:.5px dashed var(--border-strong);border-radius:4px;margin-top:11px}
+.meta{display:flex;justify-content:space-between;align-items:center;margin-top:9px}
+.meta span{font-size:12px;color:var(--text-2)}
+.state{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600}
+.g{color:var(--green)} .a{color:var(--amber)} .r{color:var(--red)} .b{color:var(--accent)}
+.footer{display:flex;align-items:center;justify-content:space-between;
+  padding-top:10px;border-top:.5px solid var(--border);margin-top:2px}
+.footer span{font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.link{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--accent)}
+.under{font-size:12px;font-weight:600;color:var(--text-2);text-decoration:underline;text-underline-offset:2px}
+
+.nav{display:flex;align-items:center;gap:7px;padding:14px 16px 12px;color:var(--text-2)}
+.nav span{font-size:14px;font-weight:600;color:var(--text)}
+.group{padding:0 12px 10px}
+.glabel{font-size:11px;font-weight:600;color:var(--text-3);letter-spacing:.6px;margin:0 4px 5px}
+.slist{background:var(--surface);border:.5px solid var(--border);border-radius:12px;padding:0 13px}
+.srow{display:flex;align-items:center;justify-content:space-between;padding:11px 0}
+.srow+.srow{border-top:.5px solid var(--border)}
+.srow>span:first-child{font-size:13px}
+.sh{font-size:11px;color:var(--text-3);margin-top:2px;line-height:1.4}
+.seg{display:flex;background:var(--seg-bg);border-radius:8px;padding:2px;gap:1px;flex-shrink:0}
+.seg b{font-size:11px;font-weight:400;padding:3px 8px;border-radius:6px;color:var(--text-2);white-space:nowrap}
+.seg b.on{background:var(--surface);color:var(--text);font-weight:600;border:.5px solid var(--border)}
+.stepper{display:flex;align-items:center;border:.5px solid var(--border-strong);border-radius:8px;overflow:hidden;flex-shrink:0}
+.stepper u{width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+  color:var(--text-2);font-size:13px;text-decoration:none}
+.stepper s{font-size:12px;font-weight:600;min-width:34px;text-align:center;text-decoration:none;
+  font-variant-numeric:tabular-nums}
+.tg{width:32px;height:18px;border-radius:9px;background:var(--seg-bg);position:relative;flex-shrink:0;margin-left:12px}
+.tg.on{background:var(--accent)}
+.tg i{position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .2s}
+.tg.on i{left:16px}
+.actionbar{display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;background:var(--surface);border-top:.5px solid var(--border)}
+.actionbar .r{display:flex;align-items:center;gap:8px}
+.btn-ghost{font-size:12px;color:var(--text-2);padding:5px 10px;border-radius:8px}
+.btn-primary{font-size:12px;font-weight:600;color:#fff;background:var(--accent);padding:5px 14px;border-radius:8px}
+
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:34px 24px 30px}
+.empty h3{font-size:14px;font-weight:600;margin:14px 0 5px}
+.empty p{font-size:12px;color:var(--text-2);max-width:250px;line-height:1.65}
+.btn-line{margin-top:16px;font-size:12px;font-weight:600;color:var(--accent);
+  border:.5px solid var(--accent);border-radius:8px;padding:6px 16px}
+
+.grid{display:grid;gap:10px}
+.swatches{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.sw{background:var(--card);border:.5px solid var(--border);border-radius:10px;overflow:hidden}
+.sw .chip{height:44px}
+.sw .info{padding:8px 10px}
+.sw .info b{display:block;font-size:12px;font-weight:600}
+.sw .info code{font-size:11px;color:var(--text-3);font-family:ui-monospace,"Cascadia Code",Consolas,monospace}
+.sw .info em{display:block;font-style:normal;font-size:11px;color:var(--text-2);margin-top:2px}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
+th,td{text-align:left;padding:9px 10px;border-bottom:.5px solid var(--border);vertical-align:top}
+th{font-size:11px;font-weight:600;color:var(--text-3);letter-spacing:.4px}
+td code{font-family:ui-monospace,"Cascadia Code",Consolas,monospace;font-size:11.5px;
+  background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.tokens{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.tok{background:var(--card);border:.5px solid var(--border);border-radius:10px;padding:11px 13px}
+.tok b{display:block;font-size:12px;font-weight:600;margin-bottom:3px}
+.tok span{font-size:11.5px;color:var(--text-2);line-height:1.6}
+.spec{background:var(--card);border:.5px solid var(--border);border-radius:12px;padding:16px 18px;margin-top:10px}
+.spec ul{margin:8px 0 0 16px;font-size:12.5px;color:var(--text-2)}
+.spec li{margin-bottom:5px}
+.spec li b{color:var(--text);font-weight:600}
+.ratio{font-size:12px;color:var(--text-2);margin-top:4px}
+@media(max-width:1440px){ .stage{gap:24px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <h1>ELC 电量监视 · 界面设计规范</h1>
+    <div class="sub">桌面托盘工具 · 440px 无边框窗口 · WPF / .NET 8 · 亮暗双主题</div>
+  </div>
+  <div class="tools">
+    <button id="tLight" class="on" onclick="setTheme('light')">浅色</button>
+    <button id="tDark" onclick="setTheme('dark')">深色</button>
+  </div>
+</header>
+
+<h2><span class="n">01</span>设计原则</h2>
+<p class="lead">这是「低头看一眼就走」的工具，不是需要停留的仪表盘。四条原则决定后面所有取舍：<b>数字优先</b>（数值是主角，其余全部退让）、<b>状态可辨</b>（颜色+图标+文字三重编码，不靠色相单独承载语义）、<b>零学习</b>（Windows 用户对列表、开关、分段控件的预期照搬，不发明交互）、<b>一眼全局</b>（多设备时最紧张的那台必须立刻被看到）。</p>
+
+<h2><span class="n">02</span>核心界面</h2>
+<p class="lead">三屏并列。主界面在 440px 内可容纳 3 台设备而不滚动；设置独立成页，用标题栏的返回箭头出入，不再与列表共用同一块空间。</p>
+
+<div class="stage">
+
+  <div>
+    <div class="frame-label">主界面</div>
+    <div class="win pad">
+      <div class="titlebar">
+        <div class="brand">
+          <div class="logo">E</div><span>电量监视</span>
+        </div>
+        <div class="winbtns">
+          <div class="wbtn"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13.1 2.6v3.2H9.9"/></svg></div>
+          <div class="wbtn"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 5.5h7M12.8 5.5h.7M2.5 10.5h2.3M8 10.5h5.5"/><circle cx="11.2" cy="5.5" r="1.5" fill="var(--win-bg)"/><circle cx="6.4" cy="10.5" r="1.5" fill="var(--win-bg)"/></svg></div>
+          <div class="wbtn"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3.5 8.5h9"/></svg></div>
+          <div class="wbtn"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2"/></svg></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row1">
+          <div class="dev">MCHOSE A7 Pro</div>
+          <div class="pct r"><b>18</b><i>%</i></div>
+        </div>
+        <div class="bar"><i style="width:18%;background:var(--red)"></i><div class="tick"></div></div>
+        <div class="meta">
+          <span>2.4G 无线 · 12 秒前更新</span>
+          <div class="state r">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="var(--red)"><path d="M8 1.6l6.4 11.2H1.6L8 1.6z"/><path d="M8 5.4v3.4M8 10.6v.6" stroke="var(--surface)" stroke-width="1.4" stroke-linecap="round"/></svg>
+            低于预警线 20%
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row1">
+          <div class="dev">ROG SPEEDNOVA 8K</div>
+          <div class="pct g"><b>92</b><i>%</i></div>
+        </div>
+        <div class="bar"><i style="width:92%;background:var(--green)"></i><div class="tick"></div></div>
+        <div class="meta">
+          <span>USB 有线 · 12 秒前更新</span>
+          <div class="state g">
+            <svg width="10" height="12" viewBox="0 0 12 14" fill="var(--green)"><path d="M7.4 0.6L2 7.9h3.3L4.4 13.4l5.8-7.6H6.9L7.4 0.6z"/></svg>
+            充电中
+          </div>
+        </div>
+      </div>
+
+      <div class="card dim">
+        <div class="row1">
+          <div class="dev" style="color:var(--text-2)">AULA V9 Pro</div>
+          <div class="pct none" style="color:var(--text-3)"><b>--</b></div>
+        </div>
+        <div class="hollow"></div>
+        <div class="meta">
+          <span>已识别 · 协议未适配</span>
+          <div class="under">导出报告</div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <span>最低 18% · 17:11 刷新</span>
+        <div class="link">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13.1 2.6v3.2H9.9"/></svg>
+          立即刷新
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="frame-label">设置页</div>
+    <div class="win clip">
+      <div class="nav">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3.5L5 8l4.5 4.5"/></svg>
+        <span>设置</span>
+      </div>
+      <div class="group">
+        <div class="glabel">读取</div>
+        <div class="slist">
+          <div class="srow">
+            <span>刷新间隔</span>
+            <div class="seg"><b>30 秒</b><b class="on">1 分钟</b><b>5 分钟</b></div>
+          </div>
+          <div class="srow">
+            <div><span>唤醒后立即读取</span><div class="sh">鼠标从休眠唤醒时补一次查询</div></div>
+            <div class="tg on"><i></i></div>
+          </div>
+        </div>
+
+        <div class="glabel" style="margin-top:14px">提醒</div>
+        <div class="slist">
+          <div class="srow"><span>一级提醒</span><div class="stepper"><u>−</u><s>20%</s><u>+</u></div></div>
+          <div class="srow"><span>二级提醒</span><div class="stepper"><u>−</u><s>10%</s><u>+</u></div></div>
+          <div class="srow">
+            <div><span>提示音</span><div class="sh">系统默认 · 点击更换</div></div>
+            <div class="tg"><i></i></div>
+          </div>
+        </div>
+
+        <div class="glabel" style="margin-top:14px">启动与退出</div>
+        <div class="slist">
+          <div class="srow"><span>开机自动启动</span><div class="tg on"><i></i></div></div>
+          <div class="srow"><span>点关闭按钮时</span>
+            <div class="seg"><b class="on">最小化到托盘</b><b>退出程序</b></div>
+          </div>
+        </div>
+
+        <div class="glabel" style="margin-top:14px">外观</div>
+        <div class="slist">
+          <div class="srow"><span>主题</span>
+            <div class="seg"><b>浅色</b><b>深色</b><b class="on">跟随系统</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="actionbar">
+        <div class="btn-ghost">恢复默认</div>
+        <div class="r"><div class="btn-ghost">取消</div><div class="btn-primary">保存</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="frame-label">空状态</div>
+    <div class="win pad" style="min-height:300px;display:flex;flex-direction:column">
+      <div class="titlebar">
+        <div class="brand"><div class="logo">E</div><span>电量监视</span></div>
+        <div class="winbtns">
+          <div class="wbtn"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13.1 2.6v3.2H9.9"/></svg></div>
+          <div class="wbtn"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2"/></svg></div>
+        </div>
+      </div>
+      <div class="empty" style="flex:1">
+        <svg width="76" height="52" viewBox="0 0 76 52" fill="none">
+          <rect x="26" y="4" width="24" height="40" rx="12" stroke="var(--border-strong)" stroke-width="1.5"/>
+          <path d="M38 14v10" stroke="var(--border-strong)" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M30 33h16" stroke="var(--border-strong)" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="3 3"/>
+          <circle cx="63" cy="12" r="2.5" fill="var(--border-strong)"/>
+          <circle cx="13" cy="20" r="2" fill="var(--border-strong)" opacity=".6"/>
+          <circle cx="65" cy="34" r="2" fill="var(--border-strong)" opacity=".4"/>
+        </svg>
+        <h3>没有检测到支持的设备</h3>
+        <p>插上 2.4G 接收器或连接有线设备，然后重新扫描一次。</p>
+        <div class="btn-line">重新扫描</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<h2><span class="n">03</span>色彩系统</h2>
+<p class="lead">只有一套强调色（蓝，用于可点击）和一套状态色（绿/琥珀/红，只用于数值与状态标记）。状态色一律不用于按钮和链接，避免「红色按钮」被误读为危险操作。</p>
+
+<div class="grid swatches">
+  <div class="sw"><div class="chip" style="background:#2563EB"></div><div class="info"><b>accent</b><code>#2563EB / #5B9DFF</code><em>可点击 · 主按钮</em></div></div>
+  <div class="sw"><div class="chip" style="background:#14804A"></div><div class="info"><b>success 充足</b><code>#14804A / #45D48E</code><em>≥50% 或充满</em></div></div>
+  <div class="sw"><div class="chip" style="background:#A9640C"></div><div class="info"><b>caution 偏低</b><code>#A9640C / #E8A33D</code><em>20–49%</em></div></div>
+  <div class="sw"><div class="chip" style="background:#C0392B"></div><div class="info"><b>danger 危险</b><code>#C0392B / #F0736A</code><em>&lt;20% 或读取失败</em></div></div>
+  <div class="sw"><div class="chip" style="background:#F7F8FA;border-bottom:.5px solid #E4E7EC"></div><div class="info"><b>window bg</b><code>#F7F8FA / #16181C</code><em>窗口底</em></div></div>
+  <div class="sw"><div class="chip" style="background:#FFFFFF;border-bottom:.5px solid #E4E7EC"></div><div class="info"><b>surface</b><code>#FFFFFF / #1E2127</code><em>卡片面</em></div></div>
+  <div class="sw"><div class="chip" style="background:#14161A"></div><div class="info"><b>text primary</b><code>#14161A / #EDEFF3</code><em>设备名 · 数值</em></div></div>
+  <div class="sw"><div class="chip" style="background:#8A929E"></div><div class="info"><b>text tertiary</b><code>#8A929E / #7C8492</code><em>仅辅助信息，≥3:1</em></div></div>
+</div>
+
+<div class="spec">
+  <b>对比度实测（WCAG AA = 4.5:1 / 大字 3:1）</b>
+  <ul>
+    <li><b>#14161A on #FFFFFF</b> → 16.8:1 · 正文与数值，AAA</li>
+    <li><b>#5F6875 on #FFFFFF</b> → 6.4:1 · 副信息，AA</li>
+    <li><b>#14804A on #FFFFFF</b> → 5.5:1 · 绿色数值，AA</li>
+    <li><b>#A9640C on #FFFFFF</b> → 5.1:1 · 琥珀数值，AA</li>
+    <li><b>#C0392B on #FFFFFF</b> → 6.0:1 · 红色数值，AA</li>
+    <li><b>#2563EB on #FFFFFF</b> → 5.2:1 · 链接与主按钮文字，AA</li>
+    <li><b>#8A929E on #F7F8FA</b> → 3.1:1 · <em>仅用于 12px 辅助信息（非关键信息），不承载状态语义</em></li>
+  </ul>
+  <div class="ratio">深色主题对应数值：#EDEFF3 on #1E2127 = 13.2:1 · #45D48E = 8.1:1 · #E8A33D = 7.6:1 · #F0736A = 5.4:1 · #5B9DFF = 6.1:1</div>
+</div>
+
+<h2><span class="n">04</span>排版与度量</h2>
+<div class="tokens">
+  <div class="tok"><b>字体栈</b><span>Microsoft YaHei UI → Segoe UI Variable → Segoe UI。中文优先雅黑，数字跟随西文字体获得更好的 tabular 对齐。</span></div>
+  <div class="tok"><b>数值 27px / 600</b><span>卡内百分比，行高 1，字距 −0.5px，<code>FontNumeralAlignment=Tabular</code>。刷新时数字不跳宽。</span></div>
+  <div class="tok"><b>设备名 14px / 600</b><span>单行，<code>TextTrimming=CharacterEllipsis</code>，与数值同行两端对齐。</span></div>
+  <div class="tok"><b>副信息 12px / 400</b><span>连接方式、更新时间、状态说明。颜色 --text-2。</span></div>
+  <div class="tok"><b>分组标题 11px / 600</b><span>设置页分组，色 --text-3，字距 0.6px。</span></div>
+  <div class="tok"><b>间距 4pt 基准</b><span>4 / 8 / 10 / 12 / 16 / 20 / 24。卡内 13–15，卡间 9，分组间 14。</span></div>
+  <div class="tok"><b>圆角</b><span>窗口 14 · 卡片 14 · 输入与分段 8 · 开关 9（胶囊）· 进度条 4。</span></div>
+  <div class="tok"><b>描边</b><span>一律 0.5px。常规 --border，强调 --border-strong，未适配卡片用 0.5px dashed。</span></div>
+  <div class="tok"><b>进度条</b><span>高 8px，轨道 --track，填充语义色。预警刻度：2px×13px 竖线置于阈值百分比位置，超出轨道上下各 2.5px。</span></div>
+  <div class="tok"><b>窗口</b><span>440×自适应，最小 380×360，最大高度 620 后卡区滚动。圆角由 DWM 提供（Win11），Win10 回退 14px 纯色。</span></div>
+</div>
+
+<h2><span class="n">05</span>组件与状态</h2>
+<table>
+  <tr><th style="width:130px">组件</th><th style="width:120px">尺寸</th><th>规范</th></tr>
+  <tr><td>窗口按钮</td><td>28 × 28</td><td>圆角 8，默认透明，hover <code>rgba(128,136,152,.14)</code>，press 加深至 <code>.22</code>。图标 15px、1.4px 描边、圆头端点。关闭按钮 hover 不染红（与 Windows 应用一致，避免误触焦虑）。</td></tr>
+  <tr><td>设备卡片</td><td>440 − 32 padding</td><td>padding 13/15，圆角 14，margin-bottom 9。四行结构：名称+数值 → 进度条 → 副信息+状态 → （可选）错误。</td></tr>
+  <tr><td>状态标记</td><td>12px</td><td>图标 10–11px + 文字，字形与数值同色。仅在需要提醒时出现（偏低/危险/充电中/无应答），正常状态留空 —— 空比「正常」更安静。</td></tr>
+  <tr><td>分段控件</td><td>高 24，内 padding 2</td><td>容器 --seg-bg 圆角 8，选中项白底 + 0.5px 描边 + 600 字重，未选中 --text-2、400。</td></tr>
+  <tr><td>开关</td><td>32 × 18</td><td>胶囊轨道，圆点 14px 内距 2px。关闭态轨道 --seg-bg，开启态 --accent，位移 200ms ease。</td></tr>
+  <tr><td>步进器</td><td>高 24</td><td>− 值 + 三段，边框 0.5px 圆角 8。单击 ±1，长按 400ms 后连续步进，Shift 单击 ±5。阈值范围 5–50% 且一级 &gt; 二级。</td></tr>
+  <tr><td>空状态</td><td>居中，最大宽 250</td><td>线稿插画（非彩色）、主文案 14/600、说明 12px 两行内、主操作描边按钮。不做整屏灰化，保留标题栏可用。</td></tr>
+  <tr><td>未适配卡片</td><td>同设备卡片</td><td>虚线边框、无进度条（改用虚线空槽）、数值位显示 <code>--</code>、右下文末操作「导出报告」。刻意降低视觉权重，但不隐藏。</td></tr>
+</table>
+
+<h2><span class="n">06</span>交互与动效</h2>
+<div class="spec">
+  <b>键盘</b>
+  <ul>
+    <li><b>Ctrl + R</b> 立即刷新 · <b>Esc</b> 设置页返回 / 主界面最小化到托盘 · <b>Ctrl + ,</b> 打开设置</li>
+    <li><b>Tab</b> 顺序：窗口按钮 → 设备卡片（可聚焦，Enter 查看详情）→ 底部刷新。焦点环 2px --accent + 2px offset，始终可见（不使用 <code>:focus-visible</code> 之外的抑制）</li>
+    <li>触控目标全部 ≥ 28×28；步进器按钮 24×24 为桌面端可接受下限，不与触屏共用</li>
+  </ul>
+  <b>动效</b>
+  <ul>
+    <li>视图切换（主 ↔ 设置）：内容区横向位移 16px + 透明度，180ms <code>cubic-bezier(.2,0,0,1)</code>。不做整窗缩放</li>
+    <li>数值变化：数字直接替换，不做滚动动画（电量刷新频繁，动画会变成噪音）</li>
+    <li>进度条变化：宽度 240ms ease-out；语义色变化用 120ms 交叉淡入，避免红绿闪烁</li>
+    <li>刷新反馈：图标旋转一圈 600ms，仅手动触发时；自动刷新不显示任何动画</li>
+    <li>尊重系统「减少动画」设置，全部降级为瞬时切换</li>
+  </ul>
+  <b>反馈时机</b>
+  <ul>
+    <li>读取失败：卡片内 <code>--</code> + 副信息说明原因，不用弹窗。连续 3 次失败才升为托盘气泡一次</li>
+    <li>点关闭 → 最小化：首次执行时弹一次性气泡「已最小化到托盘，点击图标可打开」，之后静默</li>
+    <li>保存设置：按钮文字变为「已保存」600ms 后复原，不弹对话框</li>
+  </ul>
+</div>
+
+<h2><span class="n">07</span>WPF 实现要点</h2>
+<table>
+  <tr><th style="width:170px">问题</th><th>做法</th></tr>
+  <tr><td>主题切换</td><td>把现有 <code>App.xaml</code> 里的画笔改为 <code>DynamicResource</code>（当前是 StaticResource，切换不会生效），两套 <code>ResourceDictionary</code> 装在 <code>Themes/</code> 下运行时替换 MergedDictionaries。</td></tr>
+  <tr><td>数值不跳宽</td><td><code>Typography.NumeralAlignment="Tabular"</code> 加在 TextBlock 上；雅黑回退时用 <code>Segoe UI</code> 单独渲染数字。</td></tr>
+  <tr><td>图标</td><td>放弃 <code>⟳ ⚙ — ✕</code> 字符，改用 <code>Path Data</code>（Geometry）。字符图标在不同 DPI 下基线漂移，且无法控制描边粗细。</td></tr>
+  <tr><td>预警刻度</td><td>进度条 ControlTemplate 里加一条 <code>Border</code>，<code>HorizontalAlignment=Left</code> + <code>Margin</code> 绑定阈值计算值；或在 Grid 上用 <code>ColumnDefinition Width="*"</code> 双列按百分比分配。</td></tr>
+  <tr><td>视图切换</td><td>主视图与设置页放在同一 <code>Grid</code> 的两个 <code>Grid</code> 层，切换时对 <code>TranslateTransform.X</code> 与 <code>Opacity</code> 做 <code>DoubleAnimation</code>；不要用两个 Window。</td></tr>
+  <tr><td>分段控件 / 开关</td><td>WPF 无原生控件。分段控件用 <code>ListBox</code> + 自定义 ItemContainerStyle；开关用 <code>ToggleButton</code> + 自定义 Template（Track + Thumb）。</td></tr>
+  <tr><td>滚动与高度</td><td>窗口 <code>SizeToContent=Height</code> 会与最大化冲突，改用代码设置 Height = min(内容高, 620)，内容超出时 <code>ScrollViewer</code> 接管。</td></tr>
+</table>
+
+<div class="spec" style="margin-top:26px">
+  <b>落地顺序建议</b>
+  <ul>
+    <li><b>第一步（收益最大）</b>：状态语义色 + 图标替换 + 数值 tabular + 预警刻度。只改样式，不动结构，视觉提升最明显。</li>
+    <li><b>第二步</b>：设置页拆成独立视图 + 分组卡片 + 分段控件/开关，替换掉裸 TextBox 和 ComboBox。</li>
+    <li><b>第三步</b>：暗色主题 + 空状态插画 + 未适配卡片形态。</li>
+    <li><b>可省略</b>：窗口背景图与不透明度（与状态色叠加会破坏对比度），建议从设置里移到「高级」或直接移除。</li>
+  </ul>
+</div>
+
+</div>
+<script>
+function setTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('tLight').className = t === 'light' ? 'on' : '';
+  document.getElementById('tDark').className = t === 'dark' ? 'on' : '';
+}
+</script>
+</body>
+</html>

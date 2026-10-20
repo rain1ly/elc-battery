@@ -1,0 +1,9 @@
+# 文本归一化：提交时统一为 LF，检出时按平台还原
+* text=auto
+
+# 二进制资源不要做换行转换
+*.png binary
+*.ico binary
+*.exe binary
+*.dll binary
+*.lnk binary

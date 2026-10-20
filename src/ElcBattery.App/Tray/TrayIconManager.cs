@@ -40,6 +40,7 @@ public sealed class TrayIconManager : IDisposable
 
     private NotifyIcon? _appIcon;
     private bool _disposed;
+    private long _lastDoubleClickTick;
 
     private readonly Action _onShowWindow;
     private readonly Action _onRefresh;
@@ -220,6 +221,11 @@ public sealed class TrayIconManager : IDisposable
     {
         if (e.Button != MouseButtons.Left) return;
 
+        // NotifyIcon 双击的时序是 MouseUp(1) → DoubleClick → MouseUp(2)：
+        // DoubleClick 里取消的开窗，会被紧跟着的第二下 MouseUp 重新排回去，
+        // 结果就是「双击 = 刷新 + 弹窗」。刚发生过双击的短窗口内，忽略 MouseUp。
+        if (Environment.TickCount64 - _lastDoubleClickTick < 600) return;
+
         _clickTimer?.Stop();
         _clickTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(240) };
         _clickTimer.Tick += (_, _) =>
@@ -232,6 +238,7 @@ public sealed class TrayIconManager : IDisposable
 
     private void OnIconDoubleClick(object? sender, EventArgs e)
     {
+        _lastDoubleClickTick = Environment.TickCount64;
         _clickTimer?.Stop();   // 取消这次的开窗
         _onRefresh();
     }

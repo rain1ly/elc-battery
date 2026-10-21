@@ -32,6 +32,15 @@ public sealed class DeviceVm
     private static readonly Geometry BoltIcon =
         Freeze(Geometry.Parse("M7.4,0.5 L1.9,8 L5.3,8 L4.4,13.5 L10.3,5.7 L6.9,5.7 Z"));
 
+    /// <summary>
+    /// 时钟图标（环形 + 指针）。用 EvenOdd 填充规则：外圆填充、内圆挖空、
+    /// 指针因覆盖次数变回奇数而被填充 —— 单个 Path 就能画出空心时钟。
+    /// </summary>
+    private static readonly Geometry ClockIcon = Freeze(Geometry.Parse(
+        "M8,1 A7,7 0 1 1 8,15 A7,7 0 1 1 8,1 Z " +
+        "M8,3 A4.8,4.8 0 1 1 8,12.6 A4.8,4.8 0 1 1 8,3 Z " +
+        "M7.2,4.6 L8.8,4.6 L8.8,8.8 L7.2,8.8 Z"));
+
     private static Geometry Freeze(Geometry g)
     {
         g.Freeze();
@@ -89,6 +98,10 @@ public sealed class DeviceVm
         bool online = entry.IsOnline && entry.Battery.HasValue;
         int percent = online ? Math.Clamp(entry.Percent, 0, 100) : 0;
 
+        // 数据过期：这次没读到，显示的是上一次的值。
+        // 数字照常显示（颜色仍按档位），但必须标出来，否则用户会当成实时值。
+        bool stale = online && entry.IsStale;
+
         // ---------------- 语义档位 ----------------
         BatteryLevel level;
         if (!online)
@@ -107,7 +120,13 @@ public sealed class DeviceVm
         Geometry? icon = null;
         bool useWarnIcon = false, useBoltIcon = false;
 
-        if (online)
+        if (stale)
+        {
+            // 优先说明"数据不新鲜"。低电量本身由数字颜色体现，不会丢信息。
+            stateText = "数据过期";
+            icon = ClockIcon;
+        }
+        else if (online)
         {
             switch (level)
             {
@@ -139,17 +158,29 @@ public sealed class DeviceVm
 
         // ---------------- 元信息：协议 · 新鲜度 · 电压 ----------------
         string provider = entry.Provider?.DisplayName ?? "未知协议";
-        string fresh = DescribeAge(entry.Battery.Timestamp);
+        string meta;
 
-        string meta = online
-            ? $"{provider} · {fresh}"
-            : "未读取到电量";
-
-        if (online && entry.Battery.Millivolts > 0)
-            meta += $" · {entry.Battery.Millivolts / 1000.0:0.00} V";
+        if (stale)
+        {
+            meta = $"设备未响应 · 上次 {entry.Battery.Timestamp:HH:mm} 更新";
+            if (entry.Battery.Millivolts > 0)
+                meta += $" · {entry.Battery.Millivolts / 1000.0:0.00} V";
+        }
+        else if (online)
+        {
+            meta = $"{provider} · {DescribeAge(entry.Battery.Timestamp)}";
+            if (entry.Battery.Millivolts > 0)
+                meta += $" · {entry.Battery.Millivolts / 1000.0:0.00} V";
+        }
+        else
+        {
+            meta = "未读取到电量";
+        }
 
         string error = entry.Battery.Error ?? "";
-        bool hasError = !online && error.Length > 0;
+
+        // 过期时也把原因显示出来（设备无应答 / 接口占用等），方便判断是休眠还是真故障
+        bool hasError = error.Length > 0 && (!online || stale);
 
         return new DeviceVm
         {
@@ -163,7 +194,10 @@ public sealed class DeviceVm
             PercentBrush = LevelBrush(level),
             BarBrush = LevelBrush(level),
             StateText = stateText,
-            StateBrush = stateText.Length > 0 ? LevelBrush(level) : null,
+            // 过期的标记用中性灰：它是"信息不新鲜"，不该看起来像低电量那种告警
+            StateBrush = stateText.Length == 0
+                ? null
+                : LevelBrush(stale ? BatteryLevel.Unknown : level),
             StateIcon = icon,
             TickPercent = Math.Clamp(threshold1, 1, 99),
             ShowTick = online,

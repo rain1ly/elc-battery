@@ -35,6 +35,39 @@ public partial class App
     /// <summary>已经弹过预警的 key：{设备Key}:{级别}，充电或回升后清除。</summary>
     private readonly HashSet<string> _alerted = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// 各设备最近一次成功读数。Scan() 每次都造新的 DeviceEntry，
+    /// 所以跨刷新的"上一次的值"只能存在这里 —— 设备休眠时用它兜底显示。
+    /// </summary>
+    private readonly Dictionary<string, (BatteryInfo Info, DateTimeOffset At)> _lastGood =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>读不到电量时的快速补刷定时器（用户设的间隔可能长达十几分钟）。</summary>
+    private DispatcherTimer? _quickRetry;
+    private int _quickRetryCount;
+
+    /// <summary>连续补刷上限，超过就交给常规定时器，避免对着关机设备空转。</summary>
+    private const int MaxQuickRetries = 6;
+
+    /// <summary>刷新重入保护。</summary>
+    private bool _refreshing;
+    private bool _refreshPending;
+
+    /// <summary>上一轮枚举到的设备条目，用于枚举抖动时兜底。</summary>
+    private readonly Dictionary<string, DeviceEntry> _lastEntries =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>各设备连续几轮没被枚举到。</summary>
+    private readonly Dictionary<string, int> _missingRounds =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 连续几轮枚举不到就认定设备已拔掉。
+    /// 不用太小：接口被厂商软件短暂占用、USB 供电抖动都会让枚举临时失败，
+    /// 图标突然消失比显示旧值更让人困惑。6 轮在默认间隔下约半小时。
+    /// </summary>
+    private const int MissingRoundsBeforeDrop = 6;
+
     private bool _silentStart;
 
     public AppConfig Config => _configService.Current;
@@ -124,6 +157,18 @@ public partial class App
     /// </summary>
     public async Task RefreshAsync(bool manual = false)
     {
+        // 防重入：定时器、托盘双击、IPC、保存设置都可能触发刷新。
+        // 并发跑会让同一台设备的 HID 命令交错，也会让日志时间点乱掉。
+        // 运行中再来请求只记一个标记，本轮结束后补跑一次。
+        if (_refreshing)
+        {
+            _refreshPending = true;
+            if (manual) _tray?.StartRefreshAnimation();
+            return;
+        }
+
+        _refreshing = true;
+
         if (manual)
             _tray?.StartRefreshAnimation();
 
@@ -132,14 +177,31 @@ public partial class App
             var scanned = _registry.Scan(Config.ShowUnsupportedDevices);
             await _registry.RefreshAsync(scanned).ConfigureAwait(true);
 
+            CarryOverStaleReadings(scanned);
+
+            // 本轮枚举不到的设备补回来（接口被厂商软件占用、描述符偶发读不到等），
+            // 否则它会从界面凭空消失 —— 这是比读到旧值更难理解的故障。
+            RestoreMissingDevices(scanned);
+
             _entries = scanned;
 
             AppLog.WriteRefresh(_entries.Select(e =>
                 $"{e.Key} | {e.Name} | provider={e.Provider?.Id ?? "未识别"} | " +
-                $"{(e.IsOnline ? e.Percent + "%" : "--")} | charging={e.IsCharging} | {e.Battery.Error}"));
+                $"{(e.IsOnline ? e.Percent + "%" : "--")}{(e.IsStale ? "（过期）" : "")} | " +
+                $"charging={e.IsCharging} | {e.Battery.Error}"));
 
             _tray?.Sync(_entries);
             _mainWindow?.UpdateDevices(_entries);
+
+            if (_entries.Any(e => e.IsStale))
+                ScheduleQuickRetry();
+            else
+            {
+                // 全部读到 = 设备已唤醒，补刷计数归零
+                _quickRetryCount = 0;
+                _quickRetry?.Stop();
+                _quickRetry = null;
+            }
 
             CheckLowBattery();
         }
@@ -150,10 +212,119 @@ public partial class App
         }
         finally
         {
+            _refreshing = false;
+
             // 必须收尾，否则托盘会一直转下去
             if (manual)
                 _tray?.StopRefreshAnimation();
+
+            if (_refreshPending)
+            {
+                _refreshPending = false;
+                _ = RefreshAsync();
+            }
         }
+    }
+
+    /// <summary>
+    /// 把本轮没枚举到、但上一轮还在的设备补回列表，并标记为过期。
+    /// 连续 MissingRoundsBeforeDrop 轮都看不到才认定真的拔掉了。
+    /// </summary>
+    private void RestoreMissingDevices(List<DeviceEntry> entries)
+    {
+        var present = new HashSet<string>(entries.Select(e => e.Key), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var pair in _lastEntries.ToList())
+        {
+            if (present.Contains(pair.Key))
+            {
+                _missingRounds.Remove(pair.Key);
+                continue;
+            }
+
+            int rounds = (_missingRounds.TryGetValue(pair.Key, out int n) ? n : 0) + 1;
+            _missingRounds[pair.Key] = rounds;
+
+            if (rounds > MissingRoundsBeforeDrop)
+            {
+                // 连续几轮都看不到，当它拔掉了
+                _lastEntries.Remove(pair.Key);
+                _missingRounds.Remove(pair.Key);
+                _lastGood.Remove(pair.Key);
+                continue;
+            }
+
+            pair.Value.IsStale = true;
+            entries.Add(pair.Value);
+        }
+
+        foreach (var entry in entries)
+            _lastEntries[entry.Key] = entry;
+    }
+
+    /// <summary>
+    /// 本次没读到电量的设备，沿用上一次的有效值并标记 IsStale。
+    ///
+    /// 为什么这么做：鼠标静止一段时间会进深度休眠，接收器不再应答。
+    /// 这时若把界面清成 "--"，托盘图标就变成灰环、主窗口变成空白 ——
+    /// 用户以为程序坏了。显示"旧值 + 数据过期"信息量更大，也不会误报。
+    /// </summary>
+    private void CarryOverStaleReadings(List<DeviceEntry> entries)
+    {
+        foreach (var entry in entries)
+        {
+            if (entry.Battery.HasValue)
+            {
+                entry.LastGoodAt = entry.Battery.Timestamp;
+                entry.IsStale = false;
+                _lastGood[entry.Key] = (entry.Battery, entry.Battery.Timestamp);
+                continue;
+            }
+
+            // 从来没读到过 —— 保持 "--"，没有可信的旧值可用
+            if (!_lastGood.TryGetValue(entry.Key, out var last)) continue;
+
+            string? error = entry.Battery.Error;
+
+            // IsConnected 置 true：设备本身还在，只是这次没答上来。
+            // 否则界面会按「离线」处理，又退回到不显示数值。
+            entry.Battery = new BatteryInfo
+            {
+                Percent = last.Info.Percent,
+                IsCharging = last.Info.IsCharging,
+                IsConnected = true,
+                Millivolts = last.Info.Millivolts,
+                Timestamp = last.At,
+                Error = error
+            };
+
+            entry.LastGoodAt = last.At;
+            entry.IsStale = true;
+        }
+
+        // 这里不清 _lastGood：本轮枚举不到的设备会被 RestoreMissingDevices 补回来，
+        // 清掉缓存会让它恢复后读不到旧值。真正的清理在设备被判定拔掉时做。
+    }
+
+    /// <summary>
+    /// 有设备没读到时，25 秒后补刷一次。
+    /// 用户把间隔设成 15 分钟时，让一台休眠设备等 15 分钟才重试毫无意义。
+    /// </summary>
+    private void ScheduleQuickRetry()
+    {
+        if (_quickRetry != null) return;
+        if (_quickRetryCount >= MaxQuickRetries) return;
+
+        _quickRetryCount++;
+
+        _quickRetry = new DispatcherTimer { Interval = TimeSpan.FromSeconds(25) };
+        _quickRetry.Tick += (_, _) =>
+        {
+            _quickRetry?.Stop();
+            _quickRetry = null;
+            _ = RefreshAsync();
+        };
+        _quickRetry.Start();
     }
 
     private void CheckLowBattery()
@@ -293,6 +464,7 @@ public partial class App
     protected override void OnExit(ExitEventArgs e)
     {
         _timer?.Stop();
+        _quickRetry?.Stop();
         _tray?.Dispose();
         _ipcWait?.Unregister(null);
         _singleInstanceMutex?.Dispose();

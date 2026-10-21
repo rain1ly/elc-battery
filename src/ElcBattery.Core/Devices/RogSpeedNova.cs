@@ -39,6 +39,18 @@ public sealed class RogSpeedNova : IBatteryProvider
 
     private const int WirelessPayloadLength = 20;
 
+    /// <summary>单次尝试的等待预算。鼠标休眠时接收器响应更慢，700ms 实测不够稳。</summary>
+    private const int SingleAttemptBudgetMs = 900;
+
+    /// <summary>尝试次数。休眠设备常常第一次没反应，第二次就通了。</summary>
+    private const int ReadAttempts = 3;
+
+    private const int RetryDelayMs = 220;
+
+    /// <summary>发送前清空积压事件的上限，防止把预算耗在旧报文上。</summary>
+    private const int DrainLimit = 12;
+    private const int DrainTimeoutMs = 25;
+
     public string Id => "rog-speednova";
 
     public string DisplayName => "ROG SpeedNova 无线";
@@ -73,13 +85,13 @@ public sealed class RogSpeedNova : IBatteryProvider
         // control 与 event 常常是同一个接口，避免重复打开
         HidDeviceInfo controlSi = control ?? eventIf!;
         HidDeviceInfo eventSi = eventIf ?? control!;
+        bool sameDevice = ReferenceEquals(controlSi, eventSi);
 
         using var ctrlDev = HidDevice.Open(controlSi, write: true);
         if (ctrlDev == null)
             return BatteryInfo.Unknown("接口被占用，打不开（可能是其他外设软件独占）");
 
         HidDevice? eventDev = null;
-        bool sameDevice = ReferenceEquals(controlSi, eventSi);
         if (sameDevice) eventDev = ctrlDev;
         else eventDev = HidDevice.Open(eventSi!, write: false);
 
@@ -88,39 +100,76 @@ public sealed class RogSpeedNova : IBatteryProvider
             if (eventDev == null)
                 return BatteryInfo.Unknown("事件接口打不开");
 
-            var payload = new byte[WirelessPayloadLength];
-            Array.Copy(PowerCommand, payload, PowerCommand.Length);
+            // 鼠标休眠后接收器不是每次都能立刻回答：实测单次尝试约 1/3 成功率，
+            // 所以必须有重试。3 次尝试 × 800ms，最坏 2.8s —— 只在失败时才会走满。
+            BatteryInfo? last = null;
 
-            if (!ctrlDev.SendOutputReport(outId, payload))
-                return BatteryInfo.Unknown("发送命令失败（设备可能已断开）");
-
-            // 事件接口上可能有历史事件，循环读到匹配的 0x12 0x07 为止
-            var sw = Stopwatch.StartNew();
-            const int totalBudgetMs = 700;
-
-            while (sw.ElapsedMilliseconds < totalBudgetMs)
+            for (int attempt = 0; attempt < ReadAttempts; attempt++)
             {
-                int remain = totalBudgetMs - (int)sw.ElapsedMilliseconds;
-                if (remain <= 0) break;
+                ct.ThrowIfCancellationRequested();
 
-                var resp = await eventDev.ReadInputReportAsync(Math.Min(250, remain), ct)
-                                       .ConfigureAwait(false);
-                if (resp == null) continue;
+                if (attempt > 0)
+                    await Task.Delay(RetryDelayMs, ct).ConfigureAwait(false);
 
-                var parsed = TryParsePower(resp, inId);
-                if (parsed != null) return parsed;
+                var result = await TryReadOnceAsync(ctrlDev, eventDev, outId, inId, ct)
+                    .ConfigureAwait(false);
+
+                if (result.HasValue) return result;
+
+                last = result;
+
+                // 接口层面的错误重试无意义，直接返回
+                if (result.Error != null && result.Error.StartsWith("发送命令失败", StringComparison.Ordinal))
+                    return result;
             }
 
-            return new BatteryInfo
-            {
-                IsConnected = false,
-                Error = "设备无应答（接收器在线，但鼠标可能已关机）"
-            };
+            return last ?? BatteryInfo.Unknown("设备无应答");
         }
         finally
         {
             if (!sameDevice) eventDev?.Dispose();
         }
+    }
+
+    /// <summary>发一次命令并等待应答。失败返回 IsConnected=false。</summary>
+    private static async Task<BatteryInfo> TryReadOnceAsync(
+        HidDevice ctrlDev, HidDevice eventDev, byte outId, byte inId, CancellationToken ct)
+    {
+        // 鼠标休眠期间会积压一堆 0x12 0x01 周期状态事件，不清掉的话
+        // 新应答会排在它们后面，把时间预算耗在旧数据上。
+        for (int i = 0; i < DrainLimit; i++)
+        {
+            var junk = await eventDev.ReadInputReportAsync(DrainTimeoutMs, ct).ConfigureAwait(false);
+            if (junk == null) break;
+        }
+
+        var payload = new byte[WirelessPayloadLength];
+        Array.Copy(PowerCommand, payload, PowerCommand.Length);
+
+        if (!ctrlDev.SendOutputReport(outId, payload))
+            return BatteryInfo.Unknown("发送命令失败（设备可能已断开）");
+
+        // 事件接口上可能有历史事件，循环读到匹配的 0x12 0x07 为止
+        var sw = Stopwatch.StartNew();
+
+        while (sw.ElapsedMilliseconds < SingleAttemptBudgetMs)
+        {
+            int remain = SingleAttemptBudgetMs - (int)sw.ElapsedMilliseconds;
+            if (remain <= 0) break;
+
+            var resp = await eventDev.ReadInputReportAsync(Math.Min(250, remain), ct)
+                                   .ConfigureAwait(false);
+            if (resp == null) continue;
+
+            var parsed = TryParsePower(resp, inId);
+            if (parsed != null) return parsed;
+        }
+
+        return new BatteryInfo
+        {
+            IsConnected = false,
+            Error = "设备无应答（接收器在线，但鼠标可能已关机）"
+        };
     }
 
     /// <summary>从应答报文里提取电量；不是电量应答则返回 null。</summary>

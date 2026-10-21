@@ -261,6 +261,10 @@ public sealed class TrayIconManager : IDisposable
         if (!entry.IsOnline)
             return $"{name} — 未连接";
 
+        // 设备休眠时显示的是上一次的有效值，必须说清楚它不是实时的
+        if (entry.IsStale)
+            return $"{name} — {entry.Percent}%（数据过期，{entry.Battery.Timestamp:HH:mm} 读取）";
+
         string charging = entry.IsCharging ? "（充电中）" : "";
         return $"{name} — {entry.Percent}%{charging} · 双击立即刷新";
     }

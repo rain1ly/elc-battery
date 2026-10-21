@@ -14,6 +14,15 @@ public sealed class DeviceEntry
     public IBatteryProvider? Provider { get; set; }
     public BatteryInfo Battery { get; set; } = new();
 
+    /// <summary>上一次成功读数的时间。失败时用它说明「数据是多久以前的」。</summary>
+    public DateTimeOffset? LastGoodAt { get; set; }
+
+    /// <summary>
+    /// 本次刷新没读到，当前显示的是上一次的值。
+    /// 保留旧值而不是显示 "--"：设备休眠时托盘变空白，用户会以为程序坏了。
+    /// </summary>
+    public bool IsStale { get; set; }
+
     public bool Supported => Provider != null;
     public string Key => Group.DeviceKey;
     public string Name => Group.DisplayName;
